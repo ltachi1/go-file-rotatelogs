@@ -137,12 +137,12 @@ func (rl *RotateLogs) genFilename() string {
 // appropriate file handle that is currently being used.
 // If we have reached rotation time, the target file gets
 // automatically rotated, and also purged if necessary.
-func (rl *RotateLogs) Write(p []byte) (n int, err error) {
+func (rl *RotateLogs) Write(p []byte, path string) (n int, err error) {
 	// Guard against concurrent writes
 	rl.mutex.Lock()
 	defer rl.mutex.Unlock()
 
-	out, err := rl.getTargetWriter()
+	out, err := rl.getTargetWriter(path)
 	if err != nil {
 		return 0, errors.Wrap(err, `failed to acquite target io.Writer`)
 	}
@@ -151,10 +151,11 @@ func (rl *RotateLogs) Write(p []byte) (n int, err error) {
 }
 
 // must be locked during this operation
-func (rl *RotateLogs) getTargetWriter() (io.Writer, error) {
+func (rl *RotateLogs) getTargetWriter(path string) (io.Writer, error) {
 	// This filename contains the name of the "NEW" filename
 	// to log to, which may be newer than rl.currentFilename
-	filename := rl.genFilename()
+	filename := strings.Replace(rl.genFilename(), "{dir}", path, -1)
+	os.MkdirAll(filepath.Dir(filename), os.ModePerm)
 	if rl.curFn == filename {
 		// nothing to do
 		return rl.outFh, nil
